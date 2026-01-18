@@ -188,4 +188,19 @@
 
   // init
   fetchOverview();
+
+  async function logout() {
+  try {
+    await fetch("/api/logout", { method: "POST" });
+  } catch (e) {
+    // 실패해도 로컬에선 그냥 보내버리자
+  } finally {
+    location.href = "/login";
+  }
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("btnLogout");
+  if (btn) btn.addEventListener("click", logout);
+});
 })();

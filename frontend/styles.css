@@ -451,3 +451,100 @@ button:disabled {
   font-weight: 700;
   margin-top: 2px;
 }
+
+.phone{
+  max-width: 420px;
+  margin: 0 auto;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+  padding: 16px;
+}
+
+.topbar{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-end;
+  margin-bottom: 12px;
+}
+
+.panel{
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.18);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+.formrow{ margin-top: 10px; }
+.lbl{ display:block; font-size:12px; opacity:.75; margin-bottom:6px; }
+.inp{
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.15);
+  background: rgba(0,0,0,.25);
+  color: #e8eefc;
+  padding: 12px;
+  outline: none;
+  font-size: 14px;
+}
+
+.logoutbtn{
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  color: #e8eefc;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.logoutbtn:hover{
+  background: rgba(255,255,255,.10);
+}
+
+/* 상단바: 좌/우 한 줄 유지 */
+.appbar{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* 우측 버튼: 가로 정렬 고정 */
+.appbar-right{
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: nowrap;       /* 줄바꿈 금지 */
+}
+
+/* 버튼 공통: 동일한 크기/톤 */
+.btn{
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 14px;
+  font-size: 14px;
+  font-weight: 800;
+  white-space: nowrap;     /* 버튼 글자 줄바꿈 금지 */
+  cursor: pointer;
+  border: 1px solid rgba(255,255,255,.18);
+  background: rgba(255,255,255,.06);
+  color: #e8eefc;
+}
+
+.btn-primary{
+  background: rgba(255,255,255,.10);
+  border-color: rgba(255,255,255,.22);
+}
+
+.btn-secondary{
+  background: rgba(255,255,255,.06);
+  border-color: rgba(255,255,255,.18);
+}
+
+.btn:hover{
+  background: rgba(255,255,255,.12);
+}
