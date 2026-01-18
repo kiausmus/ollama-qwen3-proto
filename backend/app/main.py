@@ -1,4 +1,5 @@
 import re
+import json
 import asyncio
 from pathlib import Path
 from datetime import date, timedelta
@@ -6,11 +7,21 @@ from datetime import date, timedelta
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, func
+from sqlalchemy.orm import declarative_base, sessionmaker
 
-from .schemas import ChatRequest, ChatResponse, ShouldIBuyRequest, ShouldIBuyResponse
+from .schemas import (
+    ChatRequest,
+    ChatResponse,
+    ShouldIBuyRequest,
+    ShouldIBuyResponse,
+    StockReportRequest,
+    StockReportResponse,
+)
 from .ollama_client import OllamaClient
 from .config import OLLAMA_BASE_URL, OLLAMA_MODEL
 from .finnhub_client import FinnhubClient
+from .report_agent import run_stock_report
 
 app = FastAPI(title="Ollama Qwen3 Prototype")
 client = OllamaClient()
@@ -19,11 +30,123 @@ finn = FinnhubClient()
 # --- 프론트 정적 파일 경로 (프로젝트 루트/frontend) ---
 PROJECT_ROOT = (Path(__file__).resolve().parents[2]).resolve()
 FRONTEND_DIR = (PROJECT_ROOT / "frontend").resolve()
+DB_PATH = (PROJECT_ROOT / "backend" / "app" / "chat_logs.sqlite3").resolve()
+DB_URL = f"sqlite:///{DB_PATH}"
+engine = create_engine(DB_URL, connect_args={"check_same_thread": False})
+SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
+Base = declarative_base()
+
+
+class Session(Base):
+    __tablename__ = "sessions"
+
+    id = Column(String(36), primary_key=True, index=True)
+    name = Column(String(200), nullable=False)
+    created_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)
+    updated_at = Column(
+        DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp(), nullable=False
+    )
+
+
+class ChatLog(Base):
+    __tablename__ = "chat_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(String(36), ForeignKey("sessions.id"), nullable=False, index=True)
+    message = Column(Text, nullable=False)
+    created_at = Column(DateTime, server_default=func.current_timestamp(), nullable=False)
+    updated_at = Column(
+        DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp(), nullable=False
+    )
+
+
+def init_db():
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+
+
+def summarize_messages(messages):
+    if not messages:
+        return "대화"
+    user_parts = []
+    for m in messages:
+        if m.get("role") == "user":
+            text = (m.get("content") or "").strip()
+            if text:
+                user_parts.append(text)
+        if len(user_parts) >= 3:
+            break
+    if not user_parts:
+        return "대화"
+    merged = " / ".join(user_parts)
+    merged = " ".join(merged.split())
+    return merged[:80]
+
+
+def get_or_create_session(db, session_id: str, name: str):
+    session_row = db.query(Session).filter(Session.id == session_id).first()
+    if session_row:
+        return session_row
+    session_row = Session(id=session_id, name=name or "대화")
+    db.add(session_row)
+    db.commit()
+    db.refresh(session_row)
+    return session_row
+
+
+def save_chat_log(message, session_id, session_name):
+    db = SessionLocal()
+    try:
+        session_row = get_or_create_session(db, session_id, session_name)
+        row = ChatLog(session_id=session_row.id, message=message)
+        db.add(row)
+        db.commit()
+    finally:
+        db.close()
+
+
+def load_latest_session_context(session_id: str) -> str:
+    db = SessionLocal()
+    try:
+        row = (
+            db.query(ChatLog)
+            .filter(ChatLog.session_id == session_id)
+            .order_by(ChatLog.created_at.desc(), ChatLog.id.desc())
+            .first()
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="session_id에 해당하는 채팅 내역이 없습니다.")
+        try:
+            payload = json.loads(row.message)
+        except Exception:
+            payload = {}
+        messages = payload.get("messages") or []
+        response = payload.get("response")
+        lines = []
+        for m in messages:
+            role = (m.get("role") or "").strip()
+            content = (m.get("content") or "").strip()
+            if not content:
+                continue
+            lines.append(f"{role}: {content}")
+        if response:
+            lines.append(f"assistant: {response}")
+        context = "\n".join(lines).strip()
+        return context or "대화 없음"
+    finally:
+        db.close()
+
 
 if not FRONTEND_DIR.exists():
     print(f"[WARN] frontend directory not found: {FRONTEND_DIR}")
 
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR), html=False), name="static")
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 
 @app.get("/")
@@ -176,6 +299,17 @@ async def chat(req: ChatRequest):
 
     msg = data.get("message") or {}
     content = msg.get("content", "")
+    try:
+        payload = {
+            "messages": messages_in,
+            "response": content,
+            "model": OLLAMA_MODEL,
+            "last_user": last_user,
+        }
+        session_name = summarize_messages(messages_in)
+        save_chat_log(json.dumps(payload, ensure_ascii=True), req.session_id, session_name)
+    except Exception as e:
+        print(f"[DB] save failed: {e}")
     return ChatResponse(model=OLLAMA_MODEL, content=content)
 
 
@@ -260,12 +394,16 @@ async def should_i_buy(req: ShouldIBuyRequest):
 [news(최근10일, 최대5개)]
 {news}
 
+### 요구사항 
+- 한국어로 답하라.
 [출력 형식]
 1) 결론(한 줄): 장기/적립식 관점
 2) 펀더멘털 강점 3가지 (근거 지표/사실 포함)
 3) 핵심 리스크 3가지 (근거 포함)
 4) 체크리스트: 지금 확인해야 할 것 5개
 5) 한 문장 리스크 고지
+
+
 """.strip()
 
     payload = {
@@ -285,3 +423,12 @@ async def should_i_buy(req: ShouldIBuyRequest):
         raise HTTPException(status_code=502, detail=f"Ollama 호출 실패: {e}")
 
     return ShouldIBuyResponse(symbol=symbol, answer=content)
+
+
+# -------------------------
+# 주식 분석 보고서 에이전트
+# -------------------------
+@app.post("/api/agent/stock-report", response_model=StockReportResponse)
+async def stock_report(req: StockReportRequest):
+    chat_context = load_latest_session_context(req.session_id)
+    return await run_stock_report(req, finn, client, chat_context)

@@ -16,6 +16,7 @@ EXPOSE 8000
 
 CMD ["uvicorn", "backend.app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
+# uvicorn backend.app.main:app --host 0.0.0.0 --port 8000
 
 #1.docker build -t ollama-qwen3-proto .
 #2. docker run --rm -p 8000:8000 ollama-qwen3-proto
