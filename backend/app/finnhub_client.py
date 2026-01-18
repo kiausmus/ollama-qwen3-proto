@@ -65,3 +65,7 @@ class FinnhubClient:
 
     async def news(self, symbol: str, _from: str, to: str) -> Any:
         return await self._get("/company-news", {"symbol": symbol, "from": _from, "to": to}, ttl=300)
+    
+    async def market_news(self, category: str = "general") -> Any:
+        # Finnhub Market News: /news?category=general
+        return await self._get("/news", {"category": category}, ttl=60)

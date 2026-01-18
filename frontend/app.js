@@ -142,7 +142,7 @@ function App() {
 
   // 새 대화 시작
   const startNewChat = () => {
-    window.location.href = "/";
+    window.location.href = "/chat";
   };
 
   // 초기 세션 목록 로드
@@ -164,9 +164,14 @@ function App() {
   };
 
   const requestReport = async () => {
+    if (!sessionIdRef.current) {
+      alert("대화를 먼저 시작해주세요.");
+      return;
+    }
     if (reportLoading) return;
 
     const currentMessageCount = messages.length;
+   
     setPanelOpen(true);
 
     
@@ -266,11 +271,15 @@ function App() {
 
       // 오른쪽: 채팅 영역
       h("div", { className: "chat-area" + (panelOpen ? " panel-open" : "") },
-        h("div", { className: "top-actions" },
-          h("button", {
-            className: "smallbtn",
-            onClick: requestReport,
-            disabled: !sessionIdRef.current
+      h("div", { className: "top-actions" },
+        h("button", {
+          className: "smallbtn",
+          onClick: () => { window.location.href = "/"; }
+        }, "대시보드"),
+        h("button", {
+          className: "smallbtn",
+          onClick: requestReport,
+          disabled: !sessionIdRef.current || messages.length === 0
           }, "보고서 보기")
         ),
         h("div", { className: "chat", ref: chatRef },

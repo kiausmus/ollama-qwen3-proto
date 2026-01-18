@@ -4,9 +4,11 @@ import asyncio
 from pathlib import Path
 from datetime import date, timedelta
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi import FastAPI, HTTPException, Request, Depends
+from fastapi.responses import FileResponse, RedirectResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
+
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, ForeignKey, func
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -22,11 +24,17 @@ from .schemas import (
     ReportViewResponse,
 )
 from .ollama_client import OllamaClient
-from .config import OLLAMA_BASE_URL, OLLAMA_MODEL
+from .config import OLLAMA_BASE_URL, OLLAMA_MODEL, APP_SECRET_KEY, LOGIN_USERNAME, LOGIN_PASSWORD
 from .finnhub_client import FinnhubClient
 from .report_agent import run_stock_report
 
 app = FastAPI(title="Ollama Qwen3 Prototype")
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=APP_SECRET_KEY,
+    same_site="lax",
+    https_only=False,  # 로컬개발은 False, https 배포면 True 권장
+)
 client = OllamaClient()
 finn = FinnhubClient()
 
@@ -180,17 +188,51 @@ def on_startup():
 
 
 @app.get("/")
-def serve_index():
-    index_path = FRONTEND_DIR / "index.html"
-    if not index_path.exists():
-        raise HTTPException(status_code=404, detail="frontend/index.html not found")
-    return FileResponse(str(index_path))
-
+@app.get("/")
+def root():
+    return RedirectResponse(url="/market", status_code=302)
 
 @app.get("/health")
 async def health():
     return {"ok": True, "model": OLLAMA_MODEL, "ollama": OLLAMA_BASE_URL}
 
+def require_login(request: Request):
+    if not request.session.get("user"):
+        raise HTTPException(status_code=401, detail="login required")
+    return True
+
+@app.get("/login")
+def serve_login():
+    p = FRONTEND_DIR / "login.html"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="frontend/login.html not found")
+    return FileResponse(str(p))
+
+@app.post("/api/login")
+async def api_login(request: Request):
+    body = await request.json()
+    username = (body.get("username") or "").strip()
+    password = (body.get("password") or "").strip()
+
+    if username == LOGIN_USERNAME and password == LOGIN_PASSWORD:
+        request.session["user"] = {"username": username}
+        return {"ok": True}
+
+    raise HTTPException(status_code=401, detail="invalid credentials")
+
+
+@app.post("/api/logout")
+async def api_logout(request: Request):
+    request.session.clear()
+    return {"ok": True}
+
+
+@app.get("/chat")
+def serve_chat():
+    p = FRONTEND_DIR / "index.html"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="frontend/index.html not found")
+    return FileResponse(str(p))
 
 # -------------------------
 # 세션 목록/메시지 조회
@@ -575,3 +617,55 @@ async def stock_report(req: StockReportRequest):
         db.close()
 
     return report_response
+    return await run_stock_report(req, finn, client, chat_context)
+
+# backend/app/main.py (파일 상단 import에 이미 asyncio/date/timedelta 있음)
+
+@app.get("/market")
+def serve_market(request: Request):
+    if not request.session.get("user"):
+        return RedirectResponse(url="/login", status_code=302)
+
+    p = FRONTEND_DIR / "market.html"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="frontend/market.html not found")
+    return FileResponse(str(p))
+
+@app.get("/api/market/overview")
+async def market_overview(
+    request: Request,
+    category: str = "general",
+    news_limit: int = 12,
+    _=Depends(require_login),
+):
+    # "지수 현황"은 지수 대신 ETF 프록시로 보여주는 게 Finnhub에서 가장 안정적
+    symbols = [
+        "IVV",  # S&P500 proxy
+        "QQQ",  # Nasdaq100 proxy
+        "DIA",  # Dow proxy
+        "IWM",  # Russell2000 proxy
+        "TLT",  # 20Y bond proxy
+    ]
+
+    async def safe_quote(sym: str):
+        try:
+            q = await finn.quote(sym)
+            return {"symbol": sym, "quote": q}
+        except Exception as e:
+            return {"symbol": sym, "error": str(e)}
+
+    async def safe_news():
+        try:
+            news = await finn.market_news(category=category)
+            if isinstance(news, list):
+                news = news[: max(1, min(int(news_limit), 30))]
+            return news
+        except Exception as e:
+            return {"error": str(e)}
+
+    quotes, news = await asyncio.gather(
+        asyncio.gather(*[safe_quote(s) for s in symbols]),
+        safe_news(),
+    )
+
+    return {"category": category, "quotes": quotes, "news": news}

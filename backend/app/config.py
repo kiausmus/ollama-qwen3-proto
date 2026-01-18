@@ -11,3 +11,11 @@ REQUEST_TIMEOUT_SEC = float(os.getenv("OLLAMA_TIMEOUT", "600"))
 # Finnhub
 FINNHUB_BASE_URL = os.getenv("FINNHUB_BASE_URL", "https://finnhub.io/api/v1").rstrip("/")
 FINNHUB_API_KEY = os.getenv("FINNHUB_API_KEY", "d5m3rt1r01qidp4jpc4gd5m3rt1r01qidp4jpc50").strip()
+
+# ---- Auth / Session ----
+# 세션 쿠키 서명키 (배포 시 무조건 바꿔)
+APP_SECRET_KEY = os.getenv("APP_SECRET_KEY", "dev-secret-change-me")
+
+# 해커톤용 간단 로그인 계정(하드코딩 대체)
+LOGIN_USERNAME = os.getenv("LOGIN_USERNAME", "admin")
+LOGIN_PASSWORD = os.getenv("LOGIN_PASSWORD", "admin")
