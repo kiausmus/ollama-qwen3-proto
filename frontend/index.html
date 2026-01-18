@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Ollama + Qwen3 Prototype</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="wrap">
+    <div class="header">
+      <h2 style="margin:0;">Ollama + Qwen3 Prototype</h2>
+      <div class="badge">FastAPI serves React (CDN) · /api/chat → Ollama</div>
+    </div>
+
+    <div id="root" class="card">
+
+    </div>
+
+    <div class="hint">
+      - Enter 전송 / Shift+Enter 줄바꿈<br/>
+      - 새로고침하면 히스토리 초기화 (프로토타입)
+    </div>
+  </div>
+
+  <!-- React 18 + Babel (프로토타입용) -->
+  <script defer src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script defer src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  <script defer src="/static/app.js"></script>
+</body>
+</html>
