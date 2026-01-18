@@ -274,3 +274,180 @@ button:disabled {
   text-align: center;
   padding-top: 40px;
 }
+
+
+/* --- Market Dashboard (app-like) --- */
+.center {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+}
+
+.phone {
+  width: 420px;
+  max-width: 92vw;
+  border-radius: 26px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(255,255,255,.04);
+  box-shadow: 0 20px 70px rgba(0,0,0,.55);
+  overflow: hidden;
+}
+
+.appbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px;
+  background: rgba(0,0,0,.22);
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+
+.appbar-left {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.logo {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.06);
+}
+
+.title { font-size: 16px; font-weight: 900; }
+.subtitle { font-size: 12px; opacity: .75; margin-top: 2px; }
+
+.content { padding: 14px; }
+
+.tabs {
+  display: flex;
+  gap: 10px;
+  padding: 10px 0 6px 0;
+}
+
+.tab {
+  text-decoration: none;
+  color: inherit;
+  font-size: 12px;
+  opacity: .75;
+  padding: 8px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.18);
+}
+.tab-active { opacity: 1; border-color: rgba(255,255,255,.18); background: rgba(255,255,255,.06); }
+
+.section { margin-top: 14px; }
+.section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-weight: 800;
+  margin-bottom: 10px;
+}
+.muted { opacity: .7; font-weight: 500; }
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.card2 {
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.18);
+  padding: 12px;
+}
+
+.card2-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.sym { font-weight: 900; letter-spacing: .2px; }
+.chg { font-size: 12px; font-weight: 900; }
+.chg.up { opacity: 1; }
+.chg.down { opacity: 1; }
+
+.price { font-size: 22px; font-weight: 900; margin-top: 8px; }
+.meta { font-size: 12px; opacity: .75; margin-top: 4px; }
+
+.btn {
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.08);
+  color: #e8eefc;
+  cursor: pointer;
+  font-weight: 900;
+  padding: 10px 12px;
+}
+.btn:disabled { opacity: .55; cursor: not-allowed; }
+.btn-primary { background: rgba(255,255,255,.10); }
+
+.status {
+  display: none;
+  margin-top: 8px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.18);
+  font-size: 12px;
+  opacity: .9;
+}
+.status.error { border-color: rgba(255,255,255,.14); }
+
+.chips { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.chip {
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.12);
+  background: rgba(0,0,0,.12);
+  color: inherit;
+  font-size: 11px;
+  padding: 6px 9px;
+  cursor: pointer;
+  opacity: .8;
+}
+.chip-active { opacity: 1; background: rgba(255,255,255,.07); }
+
+.news-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 430px;
+  overflow: auto;
+  padding-right: 4px;
+}
+
+.news-item {
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.10);
+  background: rgba(0,0,0,.18);
+  padding: 12px;
+}
+.news-item.clickable { cursor: pointer; }
+.news-headline { font-weight: 900; }
+.news-summary { margin-top: 6px; opacity: .85; line-height: 1.45; white-space: pre-wrap; }
+.news-foot { margin-top: 8px; opacity: .6; font-size: 11px; }
+
+.symtag{
+  display: block;      /* 아래 줄 */
+  margin-left: 0;      /* ✅ 들여쓰기 방지 */
+  padding-left: 0;     /* ✅ 혹시 몰라서 */
+  text-indent: 0;      /* ✅ 혹시 몰라서 */
+  line-height: 1.2;
+  font-size: 10px;
+  opacity: .7;
+  font-weight: 700;
+  margin-top: 2px;
+}

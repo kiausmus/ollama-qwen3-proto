@@ -432,3 +432,47 @@ async def should_i_buy(req: ShouldIBuyRequest):
 async def stock_report(req: StockReportRequest):
     chat_context = load_latest_session_context(req.session_id)
     return await run_stock_report(req, finn, client, chat_context)
+
+# backend/app/main.py (파일 상단 import에 이미 asyncio/date/timedelta 있음)
+
+@app.get("/market")
+def serve_market():
+    p = FRONTEND_DIR / "market.html"
+    if not p.exists():
+        raise HTTPException(status_code=404, detail="frontend/market.html not found")
+    return FileResponse(str(p))
+
+
+@app.get("/api/market/overview")
+async def market_overview(category: str = "general", news_limit: int = 12):
+    # "지수 현황"은 지수 대신 ETF 프록시로 보여주는 게 Finnhub에서 가장 안정적
+    symbols = [
+        "IVV",  # S&P500 proxy
+        "QQQ",  # Nasdaq100 proxy
+        "DIA",  # Dow proxy
+        "IWM",  # Russell2000 proxy
+        "TLT",  # 20Y bond proxy
+    ]
+
+    async def safe_quote(sym: str):
+        try:
+            q = await finn.quote(sym)
+            return {"symbol": sym, "quote": q}
+        except Exception as e:
+            return {"symbol": sym, "error": str(e)}
+
+    async def safe_news():
+        try:
+            news = await finn.market_news(category=category)
+            if isinstance(news, list):
+                news = news[: max(1, min(int(news_limit), 30))]
+            return news
+        except Exception as e:
+            return {"error": str(e)}
+
+    quotes, news = await asyncio.gather(
+        asyncio.gather(*[safe_quote(s) for s in symbols]),
+        safe_news(),
+    )
+
+    return {"category": category, "quotes": quotes, "news": news}

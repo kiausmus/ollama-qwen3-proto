@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TickerMate · Market</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="center">
+    <div class="phone">
+      <div class="appbar">
+        <div class="appbar-left">
+          <div class="logo">TM</div>
+          <div>
+            <div class="title">Market</div>
+            <div class="subtitle">지수 프록시(ETF) · 주요 뉴스</div>
+          </div>
+        </div>
+        <div class="appbar-right">
+          <button id="btnRefresh" class="btn btn-primary">새로고침</button>
+        </div>
+      </div>
+
+      <div class="content">
+        <div class="tabs">
+          <a class="tab tab-active" href="/market">대시보드</a>
+          <a class="tab" href="/">채팅</a>
+        </div>
+
+        <div id="status" class="status">로딩 중…</div>
+
+        <section class="section">
+          <div class="section-title">
+            <span>시장 현황</span>
+            <span class="muted" id="asof"></span>
+          </div>
+          <div id="quotes" class="grid"></div>
+        </section>
+
+        <section class="section">
+          <div class="section-title">
+            <span>주요 뉴스</span>
+            <div class="chips">
+              <button class="chip chip-active" data-cat="general">general</button>
+              <button class="chip" data-cat="forex">forex</button>
+              <button class="chip" data-cat="crypto">crypto</button>
+              <button class="chip" data-cat="merger">merger</button>
+            </div>
+          </div>
+          <div id="news" class="news-list"></div>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script defer src="/static/market.js"></script>
+</body>
+</html>
