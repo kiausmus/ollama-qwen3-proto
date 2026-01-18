@@ -164,7 +164,8 @@ function App() {
   };
 
   const requestReport = async () => {
-    if (!sessionIdRef.current) {
+    console.log(sessionIdRef.current, messages.length);
+    if (!sessionIdRef.current || messages.length === 1) {
       alert("대화를 먼저 시작해주세요.");
       return;
     }
