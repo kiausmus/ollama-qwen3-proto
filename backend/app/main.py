@@ -17,6 +17,9 @@ from .schemas import (
     ShouldIBuyResponse,
     StockReportRequest,
     StockReportResponse,
+    SessionListResponse,
+    SessionMessagesResponse,
+    ReportViewResponse,
 )
 from .ollama_client import OllamaClient
 from .config import OLLAMA_BASE_URL, OLLAMA_MODEL
@@ -47,6 +50,17 @@ class Session(Base):
         DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp(), nullable=False
     )
 
+class Report(Base):
+    __tablename__ = "reports"
+
+    session_id = Column(String(36), ForeignKey("sessions.id"), primary_key=True)
+    symbol = Column(String(12), nullable=True)
+    report = Column(Text, nullable=True)
+    report_chat_id = Column(Integer, nullable=True)
+    latest_chat_id = Column(Integer, nullable=True)
+    updated_at = Column(
+        DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp(), nullable=False
+    )
 
 class ChatLog(Base):
     __tablename__ = "chat_logs"
@@ -62,7 +76,7 @@ class ChatLog(Base):
 
 def init_db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    Base.metadata.drop_all(bind=engine)
+    # Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
 
 
@@ -102,6 +116,8 @@ def save_chat_log(message, session_id, session_name):
         row = ChatLog(session_id=session_row.id, message=message)
         db.add(row)
         db.commit()
+        db.refresh(row)
+        return row.id
     finally:
         db.close()
 
@@ -138,6 +154,20 @@ def load_latest_session_context(session_id: str) -> str:
         db.close()
 
 
+def get_latest_chat_log_id(session_id: str):
+    db = SessionLocal()
+    try:
+        row = (
+            db.query(ChatLog)
+            .filter(ChatLog.session_id == session_id)
+            .order_by(ChatLog.created_at.desc(), ChatLog.id.desc())
+            .first()
+        )
+        return row.id if row else None
+    finally:
+        db.close()
+
+
 if not FRONTEND_DIR.exists():
     print(f"[WARN] frontend directory not found: {FRONTEND_DIR}")
 
@@ -160,6 +190,67 @@ def serve_index():
 @app.get("/health")
 async def health():
     return {"ok": True, "model": OLLAMA_MODEL, "ollama": OLLAMA_BASE_URL}
+
+
+# -------------------------
+# 세션 목록/메시지 조회
+# -------------------------
+@app.get("/api/ssessions", response_model=SessionListResponse)
+def list_sessions():
+    db = SessionLocal()
+    try:
+        rows = db.query(Session).order_by(Session.updated_at.desc(), Session.created_at.desc()).all()
+        sessions = [
+            {"id": row.id, "name": row.name, "updated_at": row.updated_at}
+            for row in rows
+        ]
+
+        
+        return {"sessions": sessions}
+    finally:
+        db.close()
+
+
+@app.get("/api/sessions/{session_id}/messages", response_model=SessionMessagesResponse)
+def get_session_messages(session_id: str):
+    db = SessionLocal()
+    try:
+        row = (
+            db.query(ChatLog)
+            .filter(ChatLog.session_id == session_id)
+            .order_by(ChatLog.created_at.desc(), ChatLog.id.desc())
+            .first()
+        )
+        if not row:
+            raise HTTPException(status_code=404, detail="session_id에 해당하는 채팅 내역이 없습니다.")
+        try:
+            payload = json.loads(row.message)
+        except Exception:
+            payload = {}
+        messages = payload.get("messages") or []
+        response = payload.get("response")
+        if response:
+            messages = messages + [{"role": "assistant", "content": response}]
+        return {"session_id": session_id, "messages": messages}
+    finally:
+        db.close()
+
+
+@app.get("/api/sessions/{session_id}/report", response_model=ReportViewResponse)
+def get_session_report(session_id: str):
+    db = SessionLocal()
+    try:
+        report_row = db.query(Report).filter(Report.session_id == session_id).first()
+        if not report_row:
+            raise HTTPException(status_code=404, detail="session_id에 해당하는 보고서가 없습니다.")
+        return {
+            "session_id": session_id,
+            "report": report_row.report,
+            "report_chat_id": report_row.report_chat_id,
+            "latest_chat_id": report_row.latest_chat_id,
+        }
+    finally:
+        db.close()
 
 
 # -------------------------
@@ -205,7 +296,7 @@ async def chat(req: ChatRequest):
             break
 
     symbols = extract_tickers(last_user, max_n=1)
-    print(symbols)
+    
     finnhub_bundle = None
 
     if symbols:
@@ -307,7 +398,24 @@ async def chat(req: ChatRequest):
             "last_user": last_user,
         }
         session_name = summarize_messages(messages_in)
-        save_chat_log(json.dumps(payload, ensure_ascii=True), req.session_id, session_name)
+        chat_log_id = save_chat_log(json.dumps(payload, ensure_ascii=True), req.session_id, session_name)
+        if chat_log_id:
+            db = SessionLocal()
+            try:
+                report_row = db.query(Report).filter(Report.session_id == req.session_id).first()
+                if report_row:
+                    report_row.latest_chat_id = chat_log_id
+                else:
+                    report_row = Report(
+                        session_id=req.session_id,
+                        report=None,
+                        report_chat_id=None,
+                        latest_chat_id=chat_log_id,
+                    )
+                    db.add(report_row)
+                db.commit()
+            finally:
+                db.close()
     except Exception as e:
         print(f"[DB] save failed: {e}")
     return ChatResponse(model=OLLAMA_MODEL, content=content)
@@ -430,5 +538,40 @@ async def should_i_buy(req: ShouldIBuyRequest):
 # -------------------------
 @app.post("/api/agent/stock-report", response_model=StockReportResponse)
 async def stock_report(req: StockReportRequest):
+    if not req.session_id:
+        raise HTTPException(status_code=400, detail="session_id가 없습니다.")
+    latest_chat_id = get_latest_chat_log_id(req.session_id)
+    db = SessionLocal()
+    try:
+        report_row = db.query(Report).filter(Report.session_id == req.session_id).first()
+    finally:
+        db.close()
+
+    if report_row and report_row.report and report_row.report_chat_id == latest_chat_id:
+        symbol = report_row.symbol or (req.symbol or "IVV")
+        return StockReportResponse(symbol=symbol, report=report_row.report)
+
     chat_context = load_latest_session_context(req.session_id)
-    return await run_stock_report(req, finn, client, chat_context)
+    report_response = await run_stock_report(req, finn, client, chat_context)
+    db = SessionLocal()
+    try:
+        report_row = db.query(Report).filter(Report.session_id == req.session_id).first()
+        if report_row:
+            report_row.report = report_response.report
+            report_row.symbol = report_response.symbol
+            report_row.report_chat_id = latest_chat_id
+            report_row.latest_chat_id = latest_chat_id
+        else:
+            report_row = Report(
+                session_id=req.session_id,
+                symbol=report_response.symbol,
+                report=report_response.report,
+                report_chat_id=latest_chat_id,
+                latest_chat_id=latest_chat_id,
+            )
+            db.add(report_row)
+        db.commit()
+    finally:
+        db.close()
+
+    return report_response

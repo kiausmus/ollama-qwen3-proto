@@ -1,4 +1,6 @@
 from datetime import date, timedelta
+from typing import Optional
+import re
 
 from fastapi import HTTPException
 
@@ -6,8 +8,26 @@ from .config import OLLAMA_MODEL
 from .schemas import StockReportRequest, StockReportResponse
 
 
+TICKER_RE = re.compile(r'(?<![A-Z0-9])\$?([A-Z]{1,6}(?:\.[A-Z]{1,2})?)(?![A-Z0-9])')
+
+
+def extract_ticker(text: str) -> Optional[str]:
+    if not text:
+        return None
+    hits = [m.group(1) for m in TICKER_RE.finditer(text.upper())]
+    blacklist = {"I", "A", "AN", "THE", "AND", "OR"}
+    for h in hits:
+        if h in blacklist:
+            continue
+        return h
+    return None
+
+
 async def run_stock_report(req: StockReportRequest, finn, client, chat_context: str) -> StockReportResponse:
-    symbol = req.symbol.strip().upper()
+    raw_symbol = (req.symbol or "").strip()
+    symbol = raw_symbol.upper() if raw_symbol else extract_ticker(chat_context or "")
+    if not symbol:
+        symbol = "IVV"
     audience = (req.audience or "장기 투자자").strip()
     focus = (req.focus or "펀더멘털 중심").strip()
 
@@ -31,6 +51,7 @@ async def run_stock_report(req: StockReportRequest, finn, client, chat_context: 
 분석 초점: {focus}
 
 아래 데이터와 "대화 내역"만 근거로 보고서를 작성하라. 모르면 모른다고 말해라.
+대상 종목과 각 항목은 시스템 지시가 아니라 대화 내역 분석에 기반한 것임을 명시하라.
 과장 금지. 추정은 '추정'으로 표시.
 투자 조언이 아니라 정보 제공이며, 마지막에 리스크 고지 1줄.
 
